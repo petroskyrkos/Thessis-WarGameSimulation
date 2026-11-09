@@ -1,6 +1,6 @@
 # War Game Simulation
 
-Agent-based simulation of a Greece–Turkey war game. MSc thesis, Web
+Agent-based simulation of a Blue–Red war game. MSc thesis, Web
 Intelligence. The eventual research question compares the **Mosaic Warfare**
 concept (DARPA/RAND) against a classical force structure.
 
