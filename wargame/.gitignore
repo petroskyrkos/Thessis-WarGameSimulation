@@ -1,0 +1,20 @@
+build/
+out/
+cmake-build-*/
+.vs/
+.vscode/
+.idea/
+*.user
+
+# Build output from an in-place compile (cl /Fe: or g++ -o)
+*.obj
+*.o
+*.exe
+*.pdb
+*.ilk
+
+# Simulation output
+results/
+*.csv
+!config/*.csv
+*.bmp

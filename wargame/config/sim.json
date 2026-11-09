@@ -1,0 +1,271 @@
+// War game simulation parameters.
+// PHASE 1: classical (monolithic) forces. No Mosaic parameters here.
+//
+// No numeric value belongs in the source. Everything the simulation needs is
+// here, and every entry carries where it came from:
+//
+//   [meeting]  settled with the supervisor — see docs/MODEL.md
+//   [derived]  computed from a [meeting] figure or from public data
+//   [pilot]    invented so the benchmark can run; NOT a researched figure and
+//              not to be quoted in the thesis
+//   null       not researched yet. Reading it throws, naming the key.
+{
+  "sim": {
+    "seed": 20261018,                  // any run is reproducible from this
+    "box_km": 4.0,                     // [meeting] STILL OPEN (verified against the meeting
+                                        //   transcript, audio1309884370 10-Oct-2026): the
+                                        //   supervisor explicitly deferred this ("θα το δούμε
+                                        //   μετέπειτα"), listing 2, 3 or 4 km as options.
+                                        //   4.0 here is a placeholder, not a decision.
+    "diagonal_cost": 1.4142135624,     // [derived] a diagonal step crosses 5.66 km, not 4,
+                                       //   so it costs sqrt(2) box-equivalents (octile).
+                                       //   This keeps "5 boxes = 20 km" true in every
+                                       //   direction, as the supervisor stated the range
+                                       //   tiers. Set to 1.0 for Chebyshev (diagonal free).
+    "tick_seconds": 2.35,              // [derived] Mach 5 = 1700 m/s crosses one box
+                                       //   (the supervisor's ~800 m/s per Mach is high;
+                                       //    the speed of sound is ~340 m/s at sea level)
+    "mission_days": 30,                // [pilot] long enough to exercise the resource rules
+
+    // Who acts first when two events fall on the same tick.
+    //   "random"          a draw from the seeded RNG decides, so neither side nor any
+    //                     unit is systematically served first. Reproducible per seed.
+    //   "creation_order"  the event created first goes first. This is what the pilot
+    //                     did before 2026-10-25; it favoured whichever army had the
+    //                     lower unit numbers (the one on the right). Kept only to
+    //                     reproduce old results and checksums.
+    "tie_break": "random",
+
+    // Stop the run when no unit has moved or fired for this long. Without it, a
+    // battle whose survivors are all out of fuel and out of contact would idle to
+    // the end of the mission window. 0 turns the check off.
+    "stalemate_after_hours": 24        // [pilot]
+  },
+
+  "world": {
+    "rows": 64,                        // [pilot] 64 x 64 boxes = 256 x 256 km of flat ground
+    "cols": 64,
+    "terrain": "flat"                  // [meeting] the pilot runs on completely flat ground
+  },
+
+  "scale": {
+    "target_object_count": 2000,       // [meeting] what the final model must carry
+    "pilot_units_per_side": 100        // [meeting] 100 infantry battalions each side
+  },
+
+  "resources": {
+    // Three resources. A = munitions, B = fuel, C = supplies (food + medicine).
+    // [meeting] every unit consumes base_rate + effort_term.
+    "post_combat": {
+      "supplies_multiplier": 2.0,      // [meeting] 200% of base rate after a battle
+      "days": 7,                       // [meeting] for one week, cumulative across battles
+      "cumulative": true
+    }
+  },
+
+  "damage": {
+    // [meeting] reference values from the Model 0 session
+    "light_infantry": 5,
+    "infantry_antitank": 7,
+    "manpads": 10,
+    "guided_missile": 10,
+    "tank_round": 10,
+    "bomb_or_shell": 15,
+    "heavy_torpedo": 15,
+    "antiship_missile": 15,
+
+    // Reference only: the 90-95% band the supervisor gave for GUIDED munitions.
+    // Nothing reads it. The infantry's own hit probability is
+    // units.infantry_battalion.hit_probability below.
+    "hit_probability_base": 0.925,     // [derived] midpoint of the 90-95% guided-munition band
+
+    // Electronic warfare lowers the chance that a shot lands.
+    "ew_reduction": 0.35,              // [derived] midpoint of the 30-40% EW degradation
+    // How the reduction is applied. RESOLVED (2026-11-08, verified against the meeting
+    // transcript, audio1414200147 10-Oct-2026): the supervisor explicitly said
+    // "Αρα το αφαιρω" (so I subtract it) while describing a linear EW model -> subtractive.
+    // PILOT.md's "x EW modifier" wording predates this and should be corrected too.
+    //   "multiplicative"  p = hit_probability * (1 - ew_reduction * ew_coverage)
+    //   "subtractive"     p = hit_probability - ew_reduction * ew_coverage  (floor 0)
+    // With the pilot's ew_coverage of 0 the two are identical, so this changes no
+    // pilot result or checksum.
+    "ew_mode": "subtractive"
+  },
+
+  "units": {
+    "infantry_battalion": {
+      "name": "infantry",
+      "hp": 45,                        // [meeting] battalion health pool, light weapons
+      "attack": 5,                     // [meeting] light infantry weapons
+
+      // Chance that one shot lands. DECIDED (2026-11-08, user): the supervisor's
+      // 90-95% band was given for guided munitions, not infantry light weapons,
+      // but we apply the same logic (take the midpoint of the known band as the
+      // stand-in) rather than chase a separate real-world figure for light arms.
+      // No longer a research TODO.
+      "hit_probability": 0.925,        // [pilot, same-logic decision]
+      // Share (0..1) of damage.ew_reduction that applies to shots AT this unit.
+      // 0 = no electronic warfare over the battalion. The pilot battle has none;
+      // the mechanism is there and is exercised by the self-checks.
+      "ew_coverage": 0.0,              // [pilot]
+
+      "attack_range_boxes": 1,         // [meeting] adjacent box only
+      "sensing_range_boxes": 1,        // [meeting] the 8 neighbouring boxes
+      "speed_kmh": 80.0,               // [meeting] moves by truck
+      "min_speed_fraction": 0.05,       // [pilot] a badly damaged battalion never moves slower
+                                        //   than this fraction of its full speed, so it crawls
+                                        //   instead of freezing. Speed otherwise falls linearly
+                                        //   with damage (MODEL.md section 3).
+
+      "capacity": {                    // [pilot] all three, in resource units
+        "munitions": 100,
+        "fuel": 100,
+        "supplies": 100
+      },
+
+      // Consumed per day whatever the unit does. [meeting] a parked aircraft
+      // burns no fuel, but an infantry battalion still eats — so only supplies
+      // has a time-driven component here.
+      "base_per_day": {
+        "munitions": 0.0,
+        "fuel": 0.0,
+        "supplies": 1.0                // [pilot]
+      },
+
+      "fuel_per_box": 1.0,             // [pilot] charged per box-equivalent moved,
+                                       //   so a diagonal step costs sqrt(2) of this
+      "munitions_per_engagement": 1.0, // [pilot]
+
+      "decision_interval_seconds": 300.0,    // [pilot] how often an idle unit reconsiders
+      "engagement_interval_seconds": 60.0,   // [pilot] how often an engaged unit fires
+
+      // [pilot] After reaching its objective with nothing in sight, head for
+      // the enemy's centre of mass. Assumes a perfect picture at formation
+      // level while tactical sight stays at the modelled one box. Without it
+      // the survivors of the first clash sit blind in opposite corners,
+      // because infantry sees only 4 km. Reconnaissance, drones and higher
+      // command will replace this assumption later.
+      "pursue_after_objective": true,
+
+      // [pilot, display only] How many soldiers a battalion at full health
+      // stands for. NOTHING in the model uses this — it exists so the log can
+      // say "lost ~42 men, ~305 of 600 left" instead of "health 22.9".
+      "soldiers_at_full_strength": 600
+    }
+  },
+
+  "scenario": {
+    "margin_boxes": 4,               // [pilot] how far each block starts from its edge
+    "spacing_boxes": 1               // [pilot] boxes between neighbouring units at the start
+                                     //   (1 = one battalion per box, shoulder to shoulder)
+  },
+
+  // Figures that still need a real source. Each is null on purpose: reading one
+  // throws and names it, and the program lists them all at startup. They are
+  // kept here rather than in place so the pilot can run on its [pilot]
+  // stand-ins without hiding what is still unresearched.
+  "research_todo": {
+    "liters_per_resource_unit": null,       // the "1 unit = X liters" constant
+    "infantry_fuel_per_box_liters": null,   // average of an IFV and a Humvee-type jeep
+    "infantry_supplies_per_day": null       // food + medicine for a battalion
+  },
+
+  "static_assets": {
+    "self_repair_days": 50,            // [meeting] ~50 days to full repair is "very logical"
+    "large_depot": {
+      "capacity_munitions": 500,       // [meeting]
+      "capacity_supplies": 500,        // [meeting]
+      "hp": 100                        // [meeting] order of magnitude
+    },
+    "factory": {
+      "production_linear_in_damage": true,   // [meeting] max rate at 0% damage, 0 at 100%
+      "start_stock_random_fraction": true    // [meeting] tick 1 stock is random in [0, max]
+    }
+  },
+
+  // [derived] liters = kg / density. Public figures for the fuel types in use.
+  "fuel_density_kg_per_liter": {
+    "jet_a1": 0.804,
+    "gasoline": 0.755,
+    "diesel": 0.838
+  },
+
+  // Watching a run. All of this is off while measuring: drawing inside the
+  // event loop is exactly the I/O the supervisor said to keep out of it.
+  "viz": {
+    "enabled": false,                  // --live turns it on without editing this
+    "backend": "window",               // "window" (Win32) or "console";
+                                       //   "window" falls back to the console
+                                       //   on platforms without one
+    "sim_hours_per_real_second": 0.5,  // playback speed. The battle is decided in
+                                       //   about half a day, so this plays it over
+                                       //   roughly 25 seconds.
+    "frame_interval_sim_minutes": 5.0,
+    "cell_pixels": 12,                 // window viewer: pixels per 4 km box
+    "status_height_pixels": 28,
+    "gutter_min_cell_pixels": 4,       // boxes smaller than this are drawn without an outline
+    "close_poll_ms": 30,               // wait between checks once the run ends and the
+                                       //   window is held open
+    "console_max_width": 100,
+
+    // Window colours, written "#RRGGBB".
+    "colors": {
+      "ground": "#101418",
+      "grid": "#181d22",               // outline of an empty box
+      "blue": "#4ea3ff",
+      "red": "#ff5a4e",
+      "contact": "#ffd34e",            // both sides in the same box
+      "status_background": "#0b0e11",
+      "status_text": "#d0d6dc"
+    }
+  },
+
+  // A record of the battle. Off while measuring, for the same reason as the
+  // viewer: this writes from inside the event loop. --log turns it on.
+  "log": {
+    "enabled": false,
+    "directory": "results",
+    "format": "both",                  // "csv", "text" or "both"
+    "file_stem": "battle",             // files are <directory>/<stem>.csv and <stem>.log
+    "sitrep_interval_sim_minutes": 15, // periodic snapshot of both sides
+    "audit": "strict"                  // "strict" audits the invariants after
+                                       //   EVERY event and writes an `anomaly`
+                                       //   line the moment one breaks (a side
+                                       //   gaining strength, a unit listed in
+                                       //   two boxes). "sitrep" audits only at
+                                       //   each snapshot; "off" not at all.
+  },
+
+  // Settings of the built-in checks that are not part of the model.
+  "selfcheck": {
+    "symmetry_seeds": 150,             // [pilot] battles run by --symmetry, one seed each
+    "symmetry_max_abs_t": 3.0          // [pilot] fail if |mean difference / standard error|
+                                       //   exceeds this (3 = about 1 false alarm in 370)
+  },
+
+  // wargame.exe --benchmark runs the pilot battle at each size below, over many
+  // DIFFERENT seeds (not repeats of one seed: that would only remeasure noise),
+  // and reports engine time. The engine is event-driven, so throughput is given
+  // as events per second and as simulated ticks per second. A run that stops as
+  // "decided" (one side eliminated) and one that stops as "stalemate" are doing
+  // different amounts of work, so the report counts how each seed ended instead
+  // of averaging them together as if they were the same thing.
+  "benchmark": {
+    // Sizes to measure, two lists of the same length: units on each side, and the
+    // side of the square grid for that size (big enough for the formation to fit).
+    // 100 per side = the 200 objects of the pilot; 1000 per side = 2,000 objects.
+    "unit_counts_per_side": [100, 250, 500, 1000],   // [meeting] 200 and 2,000 objects
+    "world_sides": [64, 64, 64, 80],                 // [pilot]
+    "seeds_per_scale": 20,              // [pilot] distinct battles measured per size
+    "warmup_runs": 1,                   // [pilot] untimed runs first, to warm caches
+    "report_every_events": 2000,        // [pilot] one timing window per this many events
+    "output_csv": "results/benchmark.csv",           // one row per window, seed[0] of each size
+    "summary_csv": "results/benchmark_summary.csv",  // one row per size, across all its seeds
+
+    // A snapshot of every unit written at an interval, for the visualisation to
+    // come. Applies to one battle (--dump-state), never to --benchmark: it writes
+    // files inside the loop, so it must stay false while measuring.
+    "state_dump_enabled": false,
+    "state_dump_interval_sim_minutes": 15   // [pilot]
+  }
+}
