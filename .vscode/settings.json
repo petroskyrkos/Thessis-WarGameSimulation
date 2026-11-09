@@ -1,0 +1,19 @@
+{
+    "cmake.sourceDirectory": "${workspaceFolder}/wargame",
+    "cmake.buildDirectory": "${workspaceFolder}/wargame/build",
+    "cmake.generator": "Ninja",
+    "cmake.configureOnOpen": true,
+
+    "terminal.integrated.profiles.windows": {
+        "Developer PowerShell for VS 2022": {
+            "source": "PowerShell",
+            "args": [
+                "-NoExit",
+                "-Command",
+                "&{chcp 65001 | Out-Null; Import-Module \"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\Microsoft.VisualStudio.DevShell.dll\"; Enter-VsDevShell -VsInstallPath \"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\" -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'}"
+            ],
+            "icon": "terminal-powershell"
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "Developer PowerShell for VS 2022"
+}
